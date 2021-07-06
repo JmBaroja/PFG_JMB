@@ -117,19 +117,282 @@ def get_data():
 
 ### Crea db y tablas del sql
 def set_ddbb():
-    mycursor.execute("DROP DATABASE IF EXISTS tfg")
-    mycursor.execute("CREATE DATABASE IF NOT EXISTS tfg")
-    mycursor.execute("USE tfg")
+    mycursor.execute("DROP DATABASE IF EXISTS TFG_JMB")
+    mycursor.execute("CREATE DATABASE IF NOT EXISTS TFG_JMB")
+    mycursor.execute("USE TFG_JMB")
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS Tipo_Ataque (ID_T INT NOT NULL AUTO_INCREMENT,Tipo VARCHAR(20) NOT NULL,Subtipo VARCHAR(20) NOT NULl,PRIMARY KEY (ID_T))")
     mycursor.execute(
-        "CREATE TABLE IF NOT EXISTS Pais_Info (ID_P INT NOT NULL AUTO_INCREMENT,Abreviatura VARCHAR(2) NOT NULL,Nombre VARCHAR(50) NOT NULL,PRIMARY KEY (ID_P))")
+        "CREATE TABLE IF NOT EXISTS Pais_Info (ID_P INT NOT NULL AUTO_INCREMENT,Abreviatura VARCHAR(2),Nombre VARCHAR(100) NOT NULL,PRIMARY KEY (ID_P))")
     mycursor.execute(
-        "CREATE TABLE IF NOT EXISTS Ciberataques (ID_CA INT NOT NULL AUTO_INCREMENT,Tamaño VARCHAR(8) NOT NULL,Tipo INT NOT NULL,Origen VARCHAR(500) NOT NULL,Destino VARCHAR(500) NULL,Max_Bps FLOAT(20,2) NOT NULL,PRIMARY KEY (ID_CA),FOREIGN KEY (Tipo) REFERENCES Tipo_Ataque(ID_T) ON UPDATE CASCADE)")
+        "CREATE TABLE IF NOT EXISTS Ciberataques (ID_CA INT NOT NULL AUTO_INCREMENT,Tamaño VARCHAR(8) NOT NULL,Tipo INT NOT NULL,Origen VARCHAR(500) NOT NULL,Destino VARCHAR(500) NULL,Max_Bps FLOAT(15,0) NOT NULL,PRIMARY KEY (ID_CA),FOREIGN KEY (Tipo) REFERENCES Tipo_Ataque(ID_T) ON UPDATE CASCADE)")
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS Fecha_Ataque (ID_F INT NOT NULL,Fecha_Ini DATETIME NOT NULL,Fecha_Fin DATETIME NOT NULL,FOREIGN KEY (ID_F) REFERENCES Ciberataques(ID_CA) ON UPDATE CASCADE)")
     mycursor.execute(
-        "CREATE TABLE IF NOT EXISTS Historial (ID_H INT NOT NULL AUTO_INCREMENT,Pais VARCHAR(2),Num_Ataques_Recibidos INT,Ataques_MesR FLOAT(10,2),Num_Ataques_Hechos INT,Ataques_MesH FLOAT(10,2),Pais_Mas_Atacado VARCHAR(2),PRIMARY KEY (ID_H))")
+        "CREATE TABLE IF NOT EXISTS Historial (ID_H INT NOT NULL AUTO_INCREMENT,ID_P INT,NAtacados INT,NRecibidos INT NOT NULL,At2021 INT,Re2021 INT,At2020 INT,Re2020 INT,At2019 INT,Re2019 INT,At2018 INT,Re2018 INT,At2017 INT,Re2017 INT,At2016 INT,Re2016 INT,At2015 INT,Re2015 INT,PRIMARY KEY (ID_H),FOREIGN KEY (ID_P) REFERENCES Pais_Info(ID_P) ON UPDATE CASCADE)")
+
+    mycursor.execute("""
+        CREATE PROCEDURE INS_HIST()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 INSERT INTO Historial (ID_P,NAtacados,NRecibidos) VALUES (
+                     @id,
+                     (SELECT COUNT(ID_CA) as NAtacados 
+                     FROM Ciberataques 
+                     WHERE Origen LIKE CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') 
+                     AND Origen <> 'Desconocido'), 
+                     (SELECT COUNT(ID_CA) as NRecibidos 
+                     FROM Ciberataques 
+                     WHERE Destino LIKE CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') 
+                     AND Destino <> 'Desconocido')
+                 );
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    INSERT INTO Pais_Info (Abreviatura,Nombre) VALUES (null,'Desconocido');
+                    INSERT INTO Historial (ID_P,NAtacados,NRecibidos) VALUES (@id,
+                    (SELECT COUNT(ID_CA) as NAtacados FROM Ciberataques WHERE Origen = 'Desconocido'), 
+                    (SELECT COUNT(ID_CA) as NRecibidos FROM Ciberataques WHERE Destino = 'Desconocido'));
+                    LEAVE for_loop;
+                 END IF;
+            END LOOP for_loop;
+        END
+    """)
+    mycursor.execute("""
+            CREATE PROCEDURE UPD_HIST()
+                BEGIN
+                      SET @id = 1 ;
+                      for_loop: LOOP
+                         UPDATE Historial SET NAtacados=
+                             (SELECT COUNT(ID_CA) as NAtacados 
+                             FROM Ciberataques 
+                             WHERE Origen LIKE CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') 
+                             AND Origen <> 'Desconocido'), 
+                             NRecibidos=
+                             (SELECT COUNT(ID_CA) as NRecibidos 
+                             FROM Ciberataques 
+                             WHERE Destino LIKE CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') 
+                             AND Destino <> 'Desconocido')
+                         WHERE ID_P=@id;
+                         
+                         SET @id=@id+1;
+                         IF @id>252 THEN
+                            UPDATE Historial SET 
+                            NAtacados= (SELECT COUNT(ID_CA) as NAtacados FROM Ciberataques WHERE Origen = 'Desconocido'), 
+                            NRecibidos=(SELECT COUNT(ID_CA) as NRecibidos FROM Ciberataques WHERE Destino = 'Desconocido')
+                            WHERE ID_P=@id;
+                            LEAVE for_loop;
+                         END IF;
+                   END LOOP for_loop;
+                END
+        """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2021()
+            BEGIN
+                  SET @id = 1 ;
+                  for_loop: LOOP
+                     UPDATE Historial SET 
+                         At2021=(SELECT count(ID_CA) FROM Ciberataques
+                         inner join fecha_ataque ON id_f=id_ca
+                         where (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%')
+                         AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                         Re2021=(SELECT count(ID_CA) FROM Ciberataques
+                         inner join fecha_ataque ON id_f=id_ca
+                         where (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%')
+                         AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                     WHERE ID_H=@id;
+                     
+                     SET @id=@id+1;
+                     IF @id>252 THEN
+                        UPDATE Historial SET 
+                        At2021= (SELECT COUNT(ID_CA) as At2021 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%') AND Origen = 'Desconocido'), 
+                        Re2021=(SELECT COUNT(ID_CA) as Re2021 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%') AND Destino = 'Desconocido')
+                        WHERE ID_P=@id;
+                        LEAVE for_loop;
+                     END IF;
+               END LOOP for_loop;
+            END
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2020()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 UPDATE Historial SET 
+                     At2020=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%')
+                     AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                     Re2020=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%')
+                     AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                 WHERE ID_H=@id;
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    UPDATE Historial SET 
+                    At2020= (SELECT COUNT(ID_CA) as At2020 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%') AND Origen = 'Desconocido'), 
+                    Re2020=(SELECT COUNT(ID_CA) as Re2020 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%') AND Destino = 'Desconocido')
+                    WHERE ID_P=@id;
+                    LEAVE for_loop;
+                 END IF;
+           END LOOP for_loop;
+        END
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2019()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 UPDATE Historial SET 
+                     At2019=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%')
+                     AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                     Re2019=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%')
+                     AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                 WHERE ID_H=@id;
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    UPDATE Historial SET 
+                    At2019= (SELECT COUNT(ID_CA) as At2019 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%') AND Origen = 'Desconocido'), 
+                    Re2019=(SELECT COUNT(ID_CA) as Re2019 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%') AND Destino = 'Desconocido')
+                    WHERE ID_P=@id;
+                    LEAVE for_loop;
+                 END IF;
+           END LOOP for_loop;
+        END
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2018()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 UPDATE Historial SET 
+                     At2018=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%')
+                     AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                     Re2018=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%')
+                     AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                 WHERE ID_H=@id;
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    UPDATE Historial SET 
+                    At2018= (SELECT COUNT(ID_CA) as At2018 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%') AND Origen = 'Desconocido'), 
+                    Re2018=(SELECT COUNT(ID_CA) as Re2018 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%') AND Destino = 'Desconocido')
+                    WHERE ID_P=@id;
+                    LEAVE for_loop;
+                 END IF;
+           END LOOP for_loop;
+        END
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2017()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 UPDATE Historial SET 
+                     At2017=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%')
+                     AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                     Re2017=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%')
+                     AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                 WHERE ID_H=@id;
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    UPDATE Historial SET 
+                    At2017= (SELECT COUNT(ID_CA) as At2017 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%') AND Origen = 'Desconocido'), 
+                    Re2017=(SELECT COUNT(ID_CA) as Re2017 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%') AND Destino = 'Desconocido')
+                    WHERE ID_P=@id;
+                    LEAVE for_loop;
+                 END IF;
+           END LOOP for_loop;
+        END 
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2016()
+        BEGIN
+          SET @id = 1 ;
+          for_loop: LOOP
+             UPDATE Historial SET 
+                 At2016=(SELECT count(ID_CA) FROM Ciberataques
+                 inner join fecha_ataque ON id_f=id_ca
+                 where (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%')
+                 AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                 Re2016=(SELECT count(ID_CA) FROM Ciberataques
+                 inner join fecha_ataque ON id_f=id_ca
+                 where (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%')
+                 AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+             WHERE ID_H=@id;
+             
+             SET @id=@id+1;
+             IF @id>252 THEN
+                UPDATE Historial SET 
+                At2016= (SELECT COUNT(ID_CA) as At2016 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%') AND Origen = 'Desconocido'), 
+                Re2016=(SELECT COUNT(ID_CA) as Re2016 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%') AND Destino = 'Desconocido')
+                WHERE ID_P=@id;
+                LEAVE for_loop;
+             END IF;
+        END LOOP for_loop;
+        END
+            """)
+    mycursor.execute("""
+        CREATE PROCEDURE INS_A2015()
+           BEGIN
+              SET @id = 1 ;
+              for_loop: LOOP
+                 UPDATE Historial SET 
+                     At2015=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%')
+                     AND origen like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Origen <> 'Desconocido'), 
+                     Re2015=(SELECT count(ID_CA) FROM Ciberataques
+                     inner join fecha_ataque ON id_f=id_ca
+                     where (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%')
+                     AND Destino like CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') AND Destino <> 'Desconocido')
+                 WHERE ID_H=@id;
+                 
+                 SET @id=@id+1;
+                 IF @id>252 THEN
+                    UPDATE Historial SET 
+                    At2015= (SELECT COUNT(ID_CA) as At2015 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%') AND Origen = 'Desconocido'), 
+                    Re2015=(SELECT COUNT(ID_CA) as Re2015 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%') AND Destino = 'Desconocido')
+                    WHERE ID_P=@id;
+                    LEAVE for_loop;
+                 END IF;
+           END LOOP for_loop;
+        END
+                """)
+    mycursor.execute("""
+        CREATE PROCEDURE EXC_PRO()
+            BEGIN
+                SET @nuevo = (SELECT SUM(NAtacados) FROM Historial);
+                IF @nuevo>0
+                    THEN CALL UPD_HIST;
+                    ELSE CALL INS_HIST;
+                END IF;
+                CALL INS_A2021;
+                CALL INS_A2020;
+                CALL INS_A2019;
+                CALL INS_A2018;
+                CALL INS_A2017;
+                CALL INS_A2016;
+                CALL INS_A2015;
+            END
+    """)
 
     print("BASE DE DATOS CREADA CORRECTAMENTE")
 
@@ -153,6 +416,7 @@ def set_countries():
         mycursor.execute(sql, val)
         db.commit()
 
+    mycursor.execute("INSERT INTO Pais_Info (Nombre) VALUES ('Desconocido')")
     mycursor.execute("SELECT COUNT(*) FROM Pais_Info")
     record = mycursor.fetchone()
     rec = ''.join([str(i) for i in record])
@@ -318,7 +582,7 @@ if la.vacio:
     set_countries()
     set_types(la.attacks)
 else:
-    mycursor.execute("USE tfg")
+    mycursor.execute("USE TFG_JMB")
     while True:
         print("¿Desea comprobar si existen nuevos datos en la fuente de datos? (s/n)")
         op = input()
@@ -333,7 +597,7 @@ else:
                 print("Ha introducido incorrectamente el parametro especificado. Por favor, vuelva a intentarlo.")
 
 exitwh = False
-while not exitwh:
+while (not exitwh) & ((la.getCounter()-la.getInserted()) > 1):
     print("Introduzca número de ataques a descargar en la BBDD (Disponibles: {}):".format(la.getCounter()-la.getInserted()))
     while True:
         try:
@@ -346,7 +610,8 @@ while not exitwh:
     desde = la.getInserted()
     set_ciberatt(la, desde, desde+numataques)
     set_fecha(la.attacks, desde, desde+numataques)
-    while True:
+    mycursor.callproc("EXC_PRO")
+    while (la.getCounter()-la.getInserted()) > 1:
         print("¿Desea insertar más datos en la BBDD? (s/n)")
         opt = input()
         with Switch(opt) as case:
@@ -357,5 +622,6 @@ while not exitwh:
                 break
             if case.default:
                 print("Ha introducido incorrectamente el parametro especificado. Por favor, vuelva a intentarlo.")
+
 
 la.saveAttacks()
