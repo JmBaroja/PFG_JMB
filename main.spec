@@ -5,7 +5,7 @@ block_cipher = None
 
 
 a = Analysis(['main.py'],
-             pathex=['C:\\Users\\baroj\\PycharmProjects\\TFG'],
+             pathex=['D:\\Mis Archivos\\UNIVERSIDAD\\ÚLTIMO AÑO\\PFG\\tfg_jmb'],
              binaries=[],
              datas=[],
              hiddenimports=[],

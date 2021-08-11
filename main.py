@@ -129,14 +129,14 @@ def set_ddbb():
     mycursor.execute(
         "CREATE TABLE IF NOT EXISTS Fecha_Ataque (ID_F INT NOT NULL,Fecha_Ini DATETIME NOT NULL,Fecha_Fin DATETIME NOT NULL,FOREIGN KEY (ID_F) REFERENCES Ciberataques(ID_CA) ON UPDATE CASCADE)")
     mycursor.execute(
-        "CREATE TABLE IF NOT EXISTS Historial (ID_H INT NOT NULL AUTO_INCREMENT,ID_P INT,NAtacados INT,NRecibidos INT NOT NULL,At2021 INT,Re2021 INT,At2020 INT,Re2020 INT,At2019 INT,Re2019 INT,At2018 INT,Re2018 INT,At2017 INT,Re2017 INT,At2016 INT,Re2016 INT,At2015 INT,Re2015 INT,PRIMARY KEY (ID_H),FOREIGN KEY (ID_P) REFERENCES Pais_Info(ID_P) ON UPDATE CASCADE)")
+        "CREATE TABLE IF NOT EXISTS Historial (ID_H INT NOT NULL,NAtacados INT,NRecibidos INT NOT NULL,At2021 INT,Re2021 INT,At2020 INT,Re2020 INT,At2019 INT,Re2019 INT,At2018 INT,Re2018 INT,At2017 INT,Re2017 INT,At2016 INT,Re2016 INT,At2015 INT,Re2015 INT,FOREIGN KEY (ID_H) REFERENCES Pais_Info(ID_P) ON UPDATE CASCADE)")
 
     mycursor.execute("""
         CREATE PROCEDURE INS_HIST()
            BEGIN
               SET @id = 1 ;
               for_loop: LOOP
-                 INSERT INTO Historial (ID_P,NAtacados,NRecibidos) VALUES (
+                 INSERT INTO Historial (ID_H,NAtacados,NRecibidos) VALUES (
                      @id,
                      (SELECT COUNT(ID_CA) as NAtacados 
                      FROM Ciberataques 
@@ -151,7 +151,7 @@ def set_ddbb():
                  SET @id=@id+1;
                  IF @id>252 THEN
                     INSERT INTO Pais_Info (Abreviatura,Nombre) VALUES (null,'Desconocido');
-                    INSERT INTO Historial (ID_P,NAtacados,NRecibidos) VALUES (@id,
+                    INSERT INTO Historial (ID_H,NAtacados,NRecibidos) VALUES (@id,
                     (SELECT COUNT(ID_CA) as NAtacados FROM Ciberataques WHERE Origen = 'Desconocido'), 
                     (SELECT COUNT(ID_CA) as NRecibidos FROM Ciberataques WHERE Destino = 'Desconocido'));
                     LEAVE for_loop;
@@ -174,14 +174,14 @@ def set_ddbb():
                              FROM Ciberataques 
                              WHERE Destino LIKE CONCAT('%', (select Abreviatura from pais_info where id_p=@id), '%') 
                              AND Destino <> 'Desconocido')
-                         WHERE ID_P=@id;
+                         WHERE ID_H=@id;
                          
                          SET @id=@id+1;
                          IF @id>252 THEN
                             UPDATE Historial SET 
                             NAtacados= (SELECT COUNT(ID_CA) as NAtacados FROM Ciberataques WHERE Origen = 'Desconocido'), 
                             NRecibidos=(SELECT COUNT(ID_CA) as NRecibidos FROM Ciberataques WHERE Destino = 'Desconocido')
-                            WHERE ID_P=@id;
+                            WHERE ID_H=@id;
                             LEAVE for_loop;
                          END IF;
                    END LOOP for_loop;
@@ -208,7 +208,7 @@ def set_ddbb():
                         UPDATE Historial SET 
                         At2021= (SELECT COUNT(ID_CA) as At2021 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%') AND Origen = 'Desconocido'), 
                         Re2021=(SELECT COUNT(ID_CA) as Re2021 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2021-%' OR fecha_fin LIKE '%2021-%') AND Destino = 'Desconocido')
-                        WHERE ID_P=@id;
+                        WHERE ID_H=@id;
                         LEAVE for_loop;
                      END IF;
                END LOOP for_loop;
@@ -235,7 +235,7 @@ def set_ddbb():
                     UPDATE Historial SET 
                     At2020= (SELECT COUNT(ID_CA) as At2020 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%') AND Origen = 'Desconocido'), 
                     Re2020=(SELECT COUNT(ID_CA) as Re2020 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2020-%' OR fecha_fin LIKE '%2020-%') AND Destino = 'Desconocido')
-                    WHERE ID_P=@id;
+                    WHERE ID_H=@id;
                     LEAVE for_loop;
                  END IF;
            END LOOP for_loop;
@@ -262,7 +262,7 @@ def set_ddbb():
                     UPDATE Historial SET 
                     At2019= (SELECT COUNT(ID_CA) as At2019 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%') AND Origen = 'Desconocido'), 
                     Re2019=(SELECT COUNT(ID_CA) as Re2019 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2019-%' OR fecha_fin LIKE '%2019-%') AND Destino = 'Desconocido')
-                    WHERE ID_P=@id;
+                    WHERE ID_H=@id;
                     LEAVE for_loop;
                  END IF;
            END LOOP for_loop;
@@ -289,7 +289,7 @@ def set_ddbb():
                     UPDATE Historial SET 
                     At2018= (SELECT COUNT(ID_CA) as At2018 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%') AND Origen = 'Desconocido'), 
                     Re2018=(SELECT COUNT(ID_CA) as Re2018 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2018-%' OR fecha_fin LIKE '%2018-%') AND Destino = 'Desconocido')
-                    WHERE ID_P=@id;
+                    WHERE ID_H=@id;
                     LEAVE for_loop;
                  END IF;
            END LOOP for_loop;
@@ -316,7 +316,7 @@ def set_ddbb():
                     UPDATE Historial SET 
                     At2017= (SELECT COUNT(ID_CA) as At2017 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%') AND Origen = 'Desconocido'), 
                     Re2017=(SELECT COUNT(ID_CA) as Re2017 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2017-%' OR fecha_fin LIKE '%2017-%') AND Destino = 'Desconocido')
-                    WHERE ID_P=@id;
+                    WHERE ID_H=@id;
                     LEAVE for_loop;
                  END IF;
            END LOOP for_loop;
@@ -343,7 +343,7 @@ def set_ddbb():
                 UPDATE Historial SET 
                 At2016= (SELECT COUNT(ID_CA) as At2016 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%') AND Origen = 'Desconocido'), 
                 Re2016=(SELECT COUNT(ID_CA) as Re2016 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2016-%' OR fecha_fin LIKE '%2016-%') AND Destino = 'Desconocido')
-                WHERE ID_P=@id;
+                WHERE ID_H=@id;
                 LEAVE for_loop;
              END IF;
         END LOOP for_loop;
@@ -370,7 +370,7 @@ def set_ddbb():
                     UPDATE Historial SET 
                     At2015= (SELECT COUNT(ID_CA) as At2015 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%') AND Origen = 'Desconocido'), 
                     Re2015=(SELECT COUNT(ID_CA) as Re2015 FROM Ciberataques inner join fecha_ataque ON id_f=id_ca WHERE (fecha_ini LIKE '%2015-%' OR fecha_fin LIKE '%2015-%') AND Destino = 'Desconocido')
-                    WHERE ID_P=@id;
+                    WHERE ID_H=@id;
                     LEAVE for_loop;
                  END IF;
            END LOOP for_loop;
@@ -610,7 +610,8 @@ while (not exitwh) & ((la.getCounter()-la.getInserted()) > 1):
     desde = la.getInserted()
     set_ciberatt(la, desde, desde+numataques)
     set_fecha(la.attacks, desde, desde+numataques)
-    mycursor.callproc("EXC_PRO")
+    mycursor.callproc('exc_pro')
+    db.commit()
     while (la.getCounter()-la.getInserted()) > 1:
         print("¿Desea insertar más datos en la BBDD? (s/n)")
         opt = input()
